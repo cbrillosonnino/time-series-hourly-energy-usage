@@ -50,7 +50,7 @@ def save_splits(directory = 'data', cred_path = 'credentials.yml'):
 class EnergyDemandDataset(Dataset):
     """Energy Demand Dataset Object"""
 
-    def __init__(self, split, look_back, transform = 'min-max', directory = 'standard'):
+    def __init__(self, split, look_back, transform = 'standard', directory = 'data'):
         """
         Args:
             split (string): Data split -> train, validation, or test'.
