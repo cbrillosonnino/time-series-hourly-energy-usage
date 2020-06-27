@@ -59,13 +59,25 @@ class EnergyDemandDataset(Dataset):
             directory (string): Directory where data is located
         """
         
-        assert split in ['train', 'validation', 'test'], "split needs to be either 'train', 'validation', or 'test'"
+        assert split in ['train', 'val', 'test'], "split needs to be either 'train', 'val', or 'test'"
         assert transform in ['min-max', 'standard'], "transform only supports 'min-max' or 'standard' (standard score)"
         assert isinstance(look_back, int) and look_back > 0, 'look_back needs to be integer greater than 0'
         
-        self.data = pickle.load(open(os.path.join(directory,'{}.p'.format(split)), 'rb'))['MwH'].values
         self.look_back = look_back
         self.transform = transform
+        self.split = split
+        
+        if self.split == 'train':
+            self.data = pickle.load(open(os.path.join(directory,'{}.p'.format('train')), 'rb'))['MwH'].values
+        elif self.split == 'val':
+            past = pickle.load(open(os.path.join(directory,'{}.p'.format('train')), 'rb'))['MwH'].values
+            present = pickle.load(open(os.path.join(directory,'{}.p'.format('validation')), 'rb'))['MwH'].values
+            self.data = np.concatenate((past[-self.look_back:],present))
+        else:
+            past = np.concatenate((pickle.load(open(os.path.join(directory,'{}.p'.format('train')), 'rb'))['MwH'].values,
+                                   pickle.load(open(os.path.join(directory,'{}.p'.format('validation')), 'rb'))['MwH'].values))
+            present = pickle.load(open(os.path.join(directory,'{}.p'.format('test')), 'rb'))['MwH'].values
+            self.data = np.concatenate((past[-self.look_back:],present))
         
         self.mean = 18251.291178385418
         self.std = 3475.1125327833797
@@ -79,11 +91,43 @@ class EnergyDemandDataset(Dataset):
             self.data = (self.data - self.mean)/(self.std)
             
     def __len__(self):
-        return self.data.shape[0]-self.look_back
+        
+        if self.split == 'train':
+            return self.data.shape[0]-self.look_back
+        else:
+            return self.data.shape[0]-self.look_back-24
 
     def __getitem__(self, idx):
         
-        sequence = torch.Tensor(self.data[0+idx:self.look_back+idx])
-        target = torch.Tensor([self.data[self.look_back+idx]])
-
+        if self.split == 'train':
+            sequence = torch.Tensor(self.data[0+idx:self.look_back+idx])
+            target = torch.Tensor([self.data[self.look_back+idx]])
+        else:
+            sequence = torch.Tensor(self.data[0+idx:self.look_back+idx])
+            target = torch.Tensor([self.data[self.look_back+idx:self.look_back+idx+24]])
+            
         return sequence, target
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+def save_checkpoint(state, is_best, save, filename='checkpoint.pth.tar'):
+    torch.save(state, filename)
+    if is_best:
+        shutil.copyfile(filename, f'{save}/model_best.pth.tar')
