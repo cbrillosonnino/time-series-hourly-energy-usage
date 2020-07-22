@@ -2,6 +2,7 @@ import yaml
 import os 
 import pickle
 import requests
+import shutil
 
 import pandas as pd
 import numpy as np
@@ -13,7 +14,7 @@ from torch.utils.data import Dataset
 
 def get_data(cred_path = 'credentials.yml'):
 
-    cred = yaml.load(open(cred_path), Loader=yaml.FullLoader)
+    cred = yaml.load(open(cred_path),) #Loader=yaml.FullLoader
     API_key = cred['key']
     URL = 'http://api.eia.gov/series/?api_key={}&series_id=EBA.NY-ALL.D.HL'.format(API_key)
     r = requests.get(url = URL) 
@@ -95,7 +96,7 @@ class EnergyDemandDataset(Dataset):
         if self.split == 'train':
             return self.data.shape[0]-self.look_back
         else:
-            return self.data.shape[0]-self.look_back-24
+            return self.data.shape[0]/24
 
     def __getitem__(self, idx):
         
@@ -103,8 +104,8 @@ class EnergyDemandDataset(Dataset):
             sequence = torch.Tensor(self.data[0+idx:self.look_back+idx])
             target = torch.Tensor([self.data[self.look_back+idx]])
         else:
-            sequence = torch.Tensor(self.data[0+idx:self.look_back+idx])
-            target = torch.Tensor([self.data[self.look_back+idx:self.look_back+idx+24]])
+            sequence = torch.Tensor(self.data[0+idx*24:self.look_back+idx*24])
+            target = torch.Tensor([self.data[self.look_back+idx*24:self.look_back+idx*24+24]])
             
         return sequence, target
 
@@ -127,7 +128,7 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def save_checkpoint(state, is_best, save, filename='checkpoint.pth.tar'):
+def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, f'{save}/model_best.pth.tar')
+        shutil.copyfile(filename, 'model_best.pth.tar')
